@@ -41,34 +41,84 @@ nworkers = min(nworkers, feature('NumCores'));
 p = gcp('nocreate'); 
 if isempty(p), parpool(nworkers); end 
 
+%% Loading config file
+fea_dir =  'E:\temp\123\data\12MFC\'; % Feature files list
+configDir = 'E:\temp\123\data\12MFC\Lists\';
+
+fid = fopen(strcat(configDir,'config.lst'), 'rt');
+C = textscan(fid, '%q'); 
+fclose(fid);
+dataList = strcat(configDir,C{1}(1)); %UBM training list 
+ubmIdList = strcat(configDir,C{1}(2)); %UBM trainig list with speaker IDs
+trainList = strcat(configDir,C{1}(3)); % Speaker modelling list
+testList = strcat(configDir,C{1}(4)); % Trials list
+%dataList = dataList;
+ubmIdList = ubmIdList{1};
+trainList = trainList{1};
+testList = testList{1};
+ubmFile=strcat(configDir,'UBM.mat');
+bwFile=strcat(configDir,'bw.mat');
+tFile=strcat(configDir,'T.mat');
+
 %% Step1: Training the UBM
-dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
+%dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
+%Check if UBM is already trained
+if exist(ubmFile,'file')
+      
+    load(ubmFile);
+    ubm = gmm;
+    clear('gmm');
+else    
 nmix        = 256;
 final_niter = 10;
 ds_factor   = 1;
-ubm = gmm_em(dataList, nmix, final_niter, ds_factor, nworkers);
+fid = fopen(dataList, 'rt');
+filenames = textscan(fid, '%q');
+fclose(fid);
+filenames = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
+                       filenames, 'UniformOutput', false);
+ubm = gmm_em(filenames{1}, nmix, final_niter, ds_factor, nworkers,ubmFile);
+end
 
 %% Step2: Learning the total variability subspace from background data
 tv_dim = 400; 
 niter  = 5;
-dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
-fid = fopen(dataList, 'rt');
+%dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
+fid = fopen(dataList{1}, 'rt');
 C = textscan(fid, '%q');
 fclose(fid);
+C = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
+                       C, 'UniformOutput', false);
 feaFiles = C{1};
+
+if exist(bwFile,'file')
+      
+    load(bwFile);
+    %ubm = gmm;
+    %clear('gmm');
+else    
 stats = cell(length(feaFiles), 1);
+
 parfor file = 1 : length(feaFiles),
     [N, F] = compute_bw_stats(feaFiles{file}, ubm);
     stats{file} = [N; F];
 end
+end
+if exist(tFile,'file')
+      
+    load(tFile);
+    %ubm = gmm;
+    %clear('gmm');
+else    
 T = train_tv_space(stats, ubm, tv_dim, niter, nworkers);
+end
 
 %% Step3: Training the Gaussian PLDA model with development i-vectors
 lda_dim = 200;
 nphi    = 200;
 niter   = 10;
-dataList = 'E:\temp\123\Smile\Lists\UBM_id.lst';
-fid = fopen(dataList, 'rt');
+%dataList = 'E:\temp\123\Smile\Lists\UBM_id.lst';
+fid = fopen(ubmIdList, 'rt');
 C = textscan(fid, '%q %s');
 fclose(fid);
 feaFiles = C{1};
@@ -78,6 +128,10 @@ parfor file = 1 : length(feaFiles),
 end
 % reduce the dimensionality with LDA
 spk_labs = C{2};
+nSpeakers = unique(C{2}, 'stable');
+nSpeakers = size(nSpeakers,1);
+
+lda_dim = min(lda_dim, nSpeakers-1);
 V = lda(dev_ivs, spk_labs);
 dev_ivs = V(:, 1 : lda_dim)' * dev_ivs;
 %------------------------------------
@@ -85,9 +139,9 @@ plda = gplda_em(dev_ivs, spk_labs, nphi, niter);
 
 
 %% Step4: Scoring the verification trials
-fea_dir = 'E:\temp\123\Smile\';
-fea_ext = '.htk';
-fid = fopen('E:\temp\123\Smile\Lists\Train.lst', 'rt');
+%fea_dir = 'E:\temp\123\Smile\';
+%fea_ext = '.htk';
+fid = fopen(trainList, 'rt');
 C = textscan(fid, '%s %q');
 fclose(fid);
 model_ids = unique(C{1}, 'stable');
@@ -109,8 +163,8 @@ parfor spk = 1 : nspks,
     model_ivs2(:, spk) = extract_ivector([N; F]/length(spk_files), ubm, T); % stats averaging!
     model_ivs1(:, spk) = model_ivs1(:, spk)/length(spk_files); % i-vector averaging!
 end
-trial_list = 'E:\temp\123\Smile\Lists\Test.lst';
-fid = fopen(trial_list, 'rt');
+%trial_list = 'E:\temp\123\Smile\Lists\Test.lst';
+fid = fopen(testList, 'rt');
 C = textscan(fid, '%s %q %s');
 fclose(fid);
 [model_ids, ~, Kmodel] = unique(C{1}, 'stable'); % check if the order is the same as above!

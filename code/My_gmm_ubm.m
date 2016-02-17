@@ -41,18 +41,44 @@ nworkers = min(nworkers, feature('NumCores'));
 p = gcp('nocreate'); 
 if isempty(p), parpool(nworkers); end 
 
+%% Loading config file
+fea_dir =  'E:\temp\123\data\12MFC\'; % Feature files list
+configDir = 'E:\temp\123\data\12MFC\Lists\';
+
+fid = fopen(strcat(configDir,'config.lst'), 'rt');
+C = textscan(fid, '%q'); 
+fclose(fid);
+dataList = strcat(configDir,C{1}(1)); %UBM training list
+trainList = strcat(configDir,C{1}(3)); % Speaker modelling list
+testList = strcat(configDir,C{1}(4)); % Trials list
+
+ubmFile=strcat(configDir,'UBM.mat');
 
 %% Step1: Training the UBM
-dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
+%dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
+%Check if UBM is already trained
+if exist(ubmFile,'file')
+  
+load(ubmFile);
+ubm = gmm;
+clear('gmm');
+
+else    
 nmix = 256;
 final_niter = 10;
 ds_factor = 1;
-ubm = gmm_em(dataList, nmix, final_niter, ds_factor, nworkers);
+fid = fopen(dataList{1}, 'rt');
+filenames = textscan(fid, '%q');
+fclose(fid);
+filenames = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
+                       filenames, 'UniformOutput', false);
+ubm = gmm_em(filenames{1}, nmix, final_niter, ds_factor, nworkers,ubmFile);
+end
 
 %% Step2: Adapting the speaker models from UBM
-fea_dir = 'E:\temp\123\Smile\';
-fea_ext = '.htk';
-fid = fopen('E:\temp\123\Smile\Lists\Train.lst', 'rt');
+%fea_dir = 'E:\temp\123\Smile\';
+%fea_ext = '.htk';
+fid = fopen(trainList{1}, 'rt');
 C = textscan(fid, '%s %q');
 fclose(fid);
 model_ids = unique(C{1}, 'stable');
@@ -70,10 +96,10 @@ for spk = 1 : nspks,
 end
 
 %% Step3: Scoring the verification trials
-fea_dir = 'E:\temp\123\Smile\';
-fea_ext = '.htk';
-trial_list = 'E:\temp\123\Smile\Lists\Test.lst';
-fid = fopen(trial_list, 'rt');
+%fea_dir = 'E:\temp\123\Smile\';
+%fea_ext = '.htk';
+%trial_list = 'E:\temp\123\Smile\Lists\Test.lst';
+fid = fopen(testList{1}, 'rt');
 C = textscan(fid, '%s %q %s');
 fclose(fid);
 [model_ids, ~, Kmodel] = unique(C{1}, 'stable'); % check if the order is the same as above!
