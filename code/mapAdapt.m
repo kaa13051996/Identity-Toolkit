@@ -1,4 +1,4 @@
-function gmm = mapAdapt(dataList, ubmFilename, tau, config, gmmFilename)
+function gmm = mapAdapt(dataList, ubmFilename, tau, config, gmmFilename,featCol)
 % MAP-adapts a speaker specific GMM gmmFilename from UBM ubmFilename using
 % features in dataList. The MAP relevance factor can be specified via tau.
 % Adaptation of all GMM hyperparameters are supported. 
@@ -49,7 +49,11 @@ end
 gmm = ubm;
 
 if ischar(dataList) || iscellstr(dataList),
-	dataList = load_data(dataList);
+	if nargin>4
+    dataList = load_data(dataList,featCol);
+    else
+        dataList = load_data(dataList);
+    end
 end
 if ~iscell(dataList),
 	error('Oops! dataList should be a cell array!');
@@ -84,14 +88,14 @@ if any(config == 'w'),
 	gmm.w = w;
 end
 
-if ( nargin == 5 ),
+if ( nargin >= 5  && ~isempty(gmmFilename)),
 	% create the path if it does not exist and save the file
 	path = fileparts(gmmFilename);
 	if ( exist(path, 'dir')~=7 && ~isempty(path) ), mkdir(path); end
 	save(gmmFilename, 'gmm');
 end
 
-function data = load_data(datalist)
+function data = load_data(datalist,featCol)
 % load all data into memory
 if ~iscellstr(datalist)
     fid = fopen(datalist, 'rt');
@@ -103,9 +107,16 @@ else
 end
 nfiles = size(filenames, 1);
 data = cell(nfiles, 1);
+if nargin == 2
 for ix = 1 : nfiles,
-    data{ix} = htkread(filenames{ix});
+    data{ix} = htkread(filenames{ix},featCol);
 end
+    else
+    for ix = 1 : nfiles,
+    data{ix} = htkread(filenames{ix});
+    end
+end
+
 
 function [N, F, S, llk] = expectation(data, gmm)
 % compute the sufficient statistics
@@ -119,6 +130,7 @@ function [post, llk] = postprob(data, mu, sigma, w)
 post = lgmmprob(data, mu, sigma, w);
 llk  = logsumexp(post, 1);
 post = exp(bsxfun(@minus, post, llk));
+post(post==0)=[1e-270];
 
 function logprob = lgmmprob(data, mu, sigma, w)
 % compute the log probability of observations given the GMM
@@ -136,15 +148,3 @@ ind  = find(~isfinite(xmax));
 if ~isempty(ind)
     y(ind) = xmax(ind);
 end
-
-function [data, frate, feakind] = htkread(filename)
-% read features with HTK format (uncompressed)
-%fid = fopen(filename, 'rb', 'ieee-be');
-fid = fopen(filename, 'rb', 'native');
-nframes = fread(fid, 1, 'int32'); % number of frames
-frate   = fread(fid, 1, 'int32'); % frame rate in nano-seconds unit
-nbytes  = fread(fid, 1, 'short'); % number of bytes per feature value
-feakind = fread(fid, 1, 'short'); % 9 is USER
-ndim = nbytes / 4; % feature dimension (4 bytes per value)
-data = fread(fid, [ndim, nframes], 'float');
-fclose(fid);

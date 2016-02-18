@@ -1,4 +1,4 @@
-function llr = score_gmm_trials(models, testFiles, trials, ubmFilename)
+function llr = score_gmm_trials(models, testFiles, trials, ubmFilename,featCol)
 % computes the log-likelihood ratio of observations given the UBM and
 % speaker-specific (MAP adapted) models. 
 %
@@ -34,8 +34,14 @@ end
 if iscellstr(testFiles),
     tlen = length(testFiles);
     tests = cell(tlen, 1);
+    if nargin > 4
     for ix = 1 : tlen,
+        tests{ix} = htkread(testFiles{ix},featCol);
+    end
+    else 
+      for ix = 1 : tlen,
         tests{ix} = htkread(testFiles{ix});
+      end 
     end
 elseif iscell(testFiles),
     tests = testFiles;
@@ -54,6 +60,7 @@ parfor tr = 1 : ntrials,
     llr(tr) = mean(gmm_llk - ubm_llk);
 end
 
+
 function llk = compute_llk(data, mu, sigma, w)
 % compute the posterior probability of mixtures for each frame
 post = lgmmprob(data, mu, sigma, w);
@@ -68,7 +75,7 @@ logprob = -0.5 * (bsxfun(@plus, C',  D));
 logprob = bsxfun(@plus, logprob, log(w));
 
 function y = logsumexp(x, dim)
-% compute log(sum(exp(x),dim)) while avoiding numerical underflow
+%compute log(sum(exp(x),dim)) while avoiding numerical underflow
 xmax = max(x, [], dim);
 y    = xmax + log(sum(exp(bsxfun(@minus, x, xmax)), dim));
 ind  = find(~isfinite(xmax));

@@ -42,17 +42,19 @@ p = gcp('nocreate');
 if isempty(p), parpool(nworkers); end 
 
 %% Loading config file
-fea_dir =  'E:\temp\123\data\12MFC\'; % Feature files list
-configDir = 'E:\temp\123\data\12MFC\Lists\';
-
-fid = fopen(strcat(configDir,'config.lst'), 'rt');
+fea_dir =  'E:\temp\123\data\12MFC+LPC+E+MFT3\'; % Feature files list
+%fea_dir =  'E:\temp\123\data\12MFC+MFT3\'; % Feature files list
+%configDir = strcat(fea_dir,'Lists\');
+configDir = 'E:\temp\123\data\Lists\';
+fid = fopen(strcat(configDir,'cMFC_E.lst'), 'rt');
 C = textscan(fid, '%q'); 
 fclose(fid);
 dataList = strcat(configDir,C{1}(1)); %UBM training list
 trainList = strcat(configDir,C{1}(3)); % Speaker modelling list
 testList = strcat(configDir,C{1}(4)); % Trials list
+ubmFile=strcat(configDir,C{1}(5)); ubmFile=ubmFile{1};
+featCol=str2num(C{1}{6});
 
-ubmFile=strcat(configDir,'UBM.mat');
 
 %% Step1: Training the UBM
 %dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
@@ -72,7 +74,7 @@ filenames = textscan(fid, '%q');
 fclose(fid);
 filenames = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
                        filenames, 'UniformOutput', false);
-ubm = gmm_em(filenames{1}, nmix, final_niter, ds_factor, nworkers,ubmFile);
+ubm = gmm_em(filenames{1}, nmix, final_niter, ds_factor, nworkers,ubmFile,featCol);
 end
 
 %% Step2: Adapting the speaker models from UBM
@@ -92,7 +94,7 @@ for spk = 1 : nspks,
     spk_files = model_files(ids);
     spk_files = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
                        spk_files, 'UniformOutput', false);
-    gmm_models{spk} = mapAdapt(spk_files, ubm, map_tau, config);
+    gmm_models{spk} = mapAdapt(spk_files, ubm, map_tau, config,'',featCol);
 end
 
 %% Step3: Scoring the verification trials
@@ -107,7 +109,7 @@ fclose(fid);
 test_files = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
                        test_files, 'UniformOutput', false);
 trials = [Kmodel, Ktest];
-scores = score_gmm_trials(gmm_models, test_files, trials, ubm);
+scores = score_gmm_trials(gmm_models, test_files, trials, ubm,featCol);
 
 %% Step4: Computing the EER and plotting the DET curve
 labels = C{3};

@@ -1,4 +1,4 @@
-function gmm = gmm_em(dataList, nmix, final_niter, ds_factor, nworkers, gmmFilename)
+function gmm = gmm_em(dataList, nmix, final_niter, ds_factor, nworkers, gmmFilename,featCol)
 % fits a nmix-component Gaussian mixture model (GMM) to data in dataList
 % using niter EM iterations per binary split. The process can be
 % parallelized in nworkers batches using parfor.
@@ -32,7 +32,7 @@ if ( ispow2 ~= 0.5 ),
 end
 
 if ischar(dataList) || iscellstr(dataList),
-	dataList = load_data(dataList);
+	dataList = load_data(dataList,featCol);
 end
 if ~iscell(dataList),
 	error('Oops! dataList should be a cell array!');
@@ -73,7 +73,7 @@ while ( mix <= nmix )
     mix = mix * 2;
 end
 
-if ( nargin == 6 ),
+if ( exist('gmmFilename','var') ),
 	fprintf('\nSaving GMM to file %s\n', gmmFilename);
 	% create the path if it does not exist and save the file
 	path = fileparts(gmmFilename);
@@ -81,7 +81,7 @@ if ( nargin == 6 ),
 	save(gmmFilename, 'gmm');
 end
 
-function data = load_data(datalist)
+function data = load_data(datalist,featCol)
 % load all data into memory
 if ~iscellstr(datalist)
     fid = fopen(datalist, 'rt');
@@ -94,7 +94,7 @@ end
 nfiles = size(filenames, 1);
 data = cell(nfiles, 1);
 for ix = 1 : nfiles,
-    data{ix} = htkread(filenames{ix});
+    data{ix} = htkread(filenames{ix},featCol);
 end
 
 function [gm, gv] = comp_gm_gv(data)

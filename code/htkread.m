@@ -1,5 +1,6 @@
-function [data, frate, feakind] = htkread(filename)
+function [data, frate, feakind] = htkread(filename,ind)
 % reads features with HTK format
+% ind - row of column's indexes to be read
 %
 % Omid Sadjadi <s.omid.sadjadi@gmail.com>
 % Microsoft Research, Conversational Systems Research Center
@@ -13,3 +14,6 @@ feakind = fread(fid, 1, 'short'); % 9 is USER
 ndim = nbytes / 4; % feature dimension (4 bytes per value)
 data = fread(fid, [ndim, nframes], 'float');
 fclose(fid);
+if ( nargin == 2 && ndim > size(ind,2))    
+data = data(ind,:);
+end
