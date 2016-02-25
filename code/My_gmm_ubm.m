@@ -42,12 +42,14 @@ p = gcp('nocreate');
 if isempty(p), parpool(nworkers); end 
 
 %% Loading config file
-fea_dir =  'E:\temp\123\data\12MFC+LPC+E+MFT3\'; % Feature files list
+fea_dir =  'E:\temp\123\Smile\'; % Feature files list
+%fea_dir =  'E:\temp\123\mftNK\'; % Feature files list
+%fea_dir =  'E:\temp\123\data\12MFC+LPC+E+MFT3\'; % Feature files list
 %fea_dir =  'E:\temp\123\data\12MFC+MFT3\'; % Feature files list
 %configDir = strcat(fea_dir,'Lists\');
-configDir = 'E:\temp\123\data\Lists\';
-fid = fopen(strcat(configDir,'cMFC_E.lst'), 'rt');
-C = textscan(fid, '%q'); 
+configDir = 'E:\temp\123\data\ListsF\';
+fid = fopen(strcat(configDir,'cMFC_F0.lst'), 'rt');
+C = textscan(fid, '%q');
 fclose(fid);
 dataList = strcat(configDir,C{1}(1)); %UBM training list
 trainList = strcat(configDir,C{1}(3)); % Speaker modelling list
@@ -113,4 +115,4 @@ scores = score_gmm_trials(gmm_models, test_files, trials, ubm,featCol);
 
 %% Step4: Computing the EER and plotting the DET curve
 labels = C{3};
-eer = compute_eer(scores, labels, true);
+[eer, dcf1, dcf2] = compute_eer(scores, labels, true);

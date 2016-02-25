@@ -1,4 +1,4 @@
-function [eer, dcf08, dcf10] = compute_eer(scores, labels, showfig)
+function [eer, dcf08, dcf10,FNR,FPR] = compute_eer(scores, labels, showfig)
 % calculates the equal error rate (EER) performance measure.
 %
 % Inputs:                      
@@ -49,7 +49,7 @@ if ( nargout > 1 ),
 %     Cdefault = min(Cmiss * P_tgt, Cfa * ( 1 - P_tgt));
     dcf08 = 100 * min(Cdet); % note this is not percent
 end
-if ( nargout == 3 ),
+if ( nargout >2 ),
     Cmiss = 1; Cfa = 1; P_tgt = 0.001; % SRE-2010 performance parameters
     Cdet  = Cmiss * FNR * P_tgt + Cfa * FPR * ( 1 - P_tgt);
 %     Cdefault = min(Cmiss * P_tgt, Cfa * ( 1 - P_tgt));
