@@ -47,15 +47,24 @@ fea_dir =  'E:\temp\123\Smile\'; % Feature files list
 %fea_dir =  'E:\temp\123\data\12MFC+LPC+E+MFT3\'; % Feature files list
 %fea_dir =  'E:\temp\123\data\12MFC+MFT3\'; % Feature files list
 %configDir = strcat(fea_dir,'Lists\');
-configDir = 'E:\temp\123\data\ListsF\';
-fid = fopen(strcat(configDir,'cMFC_F0.lst'), 'rt');
-C = textscan(fid, '%q');
-fclose(fid);
-dataList = strcat(configDir,C{1}(1)); %UBM training list
-trainList = strcat(configDir,C{1}(3)); % Speaker modelling list
-testList = strcat(configDir,C{1}(4)); % Trials list
-ubmFile=strcat(configDir,C{1}(5)); ubmFile=ubmFile{1};
-featCol=str2num(C{1}{6});
+configDir = 'E:\temp\123\data\ListsMF\';
+ini = IniConfig();
+ini.ReadFile(strcat(configDir,'cMFC.lst'));
+sections = ini.GetSections();
+indGMM = find(ismember(sections,'[UBM GMM]'));
+indDS = find(ismember(sections,'[Data selection]'));
+keys=ini.GetKeys(sections{indGMM});
+ubmMap = containers.Map(keys,ini.GetValues(sections{indGMM}, keys)); % reading UBM GMM section
+dataList = strcat(configDir,ubmMap('ubmList')); %UBM training list
+trainList = strcat(configDir,ubmMap('trainList')); % Speaker modelling list
+testList = strcat(configDir,ubmMap('testList')); % Trials list
+ubmFile=strcat(configDir,ubmMap('ubmFile')); %ubmFile=ubmFile{1};
+
+keys=ini.GetKeys(sections{indDS}); % reading Data Selection section
+dataMap = containers.Map(keys,ini.GetValues(sections{indDS}, keys));
+featCol=str2num(dataMap('columns'));
+vadCol=dataMap('vadColumn');
+vadThr=dataMap('vadThreshold');
 
 
 %% Step1: Training the UBM
@@ -71,18 +80,18 @@ else
 nmix = 256;
 final_niter = 10;
 ds_factor = 1;
-fid = fopen(dataList{1}, 'rt');
+fid = fopen(dataList, 'rt');
 filenames = textscan(fid, '%q');
 fclose(fid);
 filenames = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
                        filenames, 'UniformOutput', false);
-ubm = gmm_em(filenames{1}, nmix, final_niter, ds_factor, nworkers,ubmFile,featCol);
+ubm = gmm_em(filenames{1}, nmix, final_niter, ds_factor, nworkers,ubmFile,featCol,vadCol,vadThr);
 end
 
 %% Step2: Adapting the speaker models from UBM
 %fea_dir = 'E:\temp\123\Smile\';
 %fea_ext = '.htk';
-fid = fopen(trainList{1}, 'rt');
+fid = fopen(trainList, 'rt');
 C = textscan(fid, '%s %q');
 fclose(fid);
 model_ids = unique(C{1}, 'stable');
@@ -96,14 +105,14 @@ for spk = 1 : nspks,
     spk_files = model_files(ids);
     spk_files = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
                        spk_files, 'UniformOutput', false);
-    gmm_models{spk} = mapAdapt(spk_files, ubm, map_tau, config,'',featCol);
+    gmm_models{spk} = mapAdapt(spk_files, ubm, map_tau, config,'',featCol,vadCol,vadThr);
 end
 
 %% Step3: Scoring the verification trials
 %fea_dir = 'E:\temp\123\Smile\';
 %fea_ext = '.htk';
 %trial_list = 'E:\temp\123\Smile\Lists\Test.lst';
-fid = fopen(testList{1}, 'rt');
+fid = fopen(testList, 'rt');
 C = textscan(fid, '%s %q %s');
 fclose(fid);
 [model_ids, ~, Kmodel] = unique(C{1}, 'stable'); % check if the order is the same as above!
@@ -111,7 +120,7 @@ fclose(fid);
 test_files = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
                        test_files, 'UniformOutput', false);
 trials = [Kmodel, Ktest];
-scores = score_gmm_trials(gmm_models, test_files, trials, ubm,featCol);
+scores = score_gmm_trials(gmm_models, test_files, trials, ubm,featCol,vadCol,vadThr);
 
 %% Step4: Computing the EER and plotting the DET curve
 labels = C{3};

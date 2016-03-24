@@ -1,4 +1,4 @@
-function [N, F] = compute_bw_stats(feaFilename, ubmFilename, statFilename)
+function [N, F] = compute_bw_stats(feaFilename, ubmFilename, featCol,vadCol,vadThr,statFilename)
 % extracts sufficient statistics for features in feaFilename and GMM 
 % ubmFilename, and optionally save the stats in statsFilename. The 
 % first order statistics are centered.
@@ -38,7 +38,11 @@ m = reshape(ubm.mu, ndim * nmix, 1);
 idx_sv = reshape(repmat(1 : nmix, ndim, 1), ndim * nmix, 1);
 
 if ischar(feaFilename),
-    data = htkread(feaFilename);
+    if isempty(vadCol)
+        data = htkread(feaFilename,featCol);
+    else
+        data = htkread(feaFilename,featCol,vadCol,vadThr);
+    end
 else
     data = feaFilename;
 end
@@ -47,7 +51,7 @@ end
 F = reshape(F, ndim * nmix, 1);
 F = F - N(idx_sv) .* m; % centered first order stats
 
-if ( nargin == 3)
+if ( nargin >= 6)
 	% create the path if it does not exist and save the file
 	path = fileparts(statFilename);
 	if ( exist(path, 'dir')~=7 && ~isempty(path) ), mkdir(path); end
@@ -68,6 +72,7 @@ function [post, llk] = postprob(data, mu, sigma, w)
 post = lgmmprob(data, mu, sigma, w);
 llk  = logsumexp(post, 1);
 post = exp(bsxfun(@minus, post, llk));
+post(post==0)=[1e-270];
 
 function logprob = lgmmprob(data, mu, sigma, w)
 % compute the log probability of observations given the GMM

@@ -1,4 +1,4 @@
-function [data, frate, feakind] = htkread(filename,ind)
+function [data, frate, feakind] = htkread(filename,ind,vadCol,vadThr)
 % reads features with HTK format
 % ind - row of column's indexes to be read
 %
@@ -14,6 +14,11 @@ feakind = fread(fid, 1, 'short'); % 9 is USER
 ndim = nbytes / 4; % feature dimension (4 bytes per value)
 data = fread(fid, [ndim, nframes], 'float');
 fclose(fid);
-if ( nargin == 2 && ndim > size(ind,2))    
+if ( nargin >1 && ndim > size(ind,2))
+    if nargin>2
+        % select voice frames
+        toDelete = data(vadCol,:)<=vadThr;
+        data(:,toDelete)=[];
+    end
 data = data(ind,:);
 end

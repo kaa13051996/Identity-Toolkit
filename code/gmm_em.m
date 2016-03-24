@@ -1,4 +1,4 @@
-function gmm = gmm_em(dataList, nmix, final_niter, ds_factor, nworkers, gmmFilename,featCol)
+function gmm = gmm_em(dataList, nmix, final_niter, ds_factor, nworkers, gmmFilename,featCol,vadCol,vadThr)
 % fits a nmix-component Gaussian mixture model (GMM) to data in dataList
 % using niter EM iterations per binary split. The process can be
 % parallelized in nworkers batches using parfor.
@@ -32,13 +32,16 @@ if ( ispow2 ~= 0.5 ),
 end
 
 if ischar(dataList) || iscellstr(dataList),
-	dataList = load_data(dataList,featCol);
+	dataList = load_data(dataList,featCol,vadCol,vadThr);
 end
 if ~iscell(dataList),
 	error('Oops! dataList should be a cell array!');
 end
 
+
+
 nfiles = length(dataList);
+
 
 fprintf('\n\nInitializing the GMM hyperparameters ...\n');
 [gm, gv] = comp_gm_gv(dataList);
@@ -81,7 +84,7 @@ if ( exist('gmmFilename','var') ),
 	save(gmmFilename, 'gmm');
 end
 
-function data = load_data(datalist,featCol)
+function data = load_data(datalist,featCol,vadCol,vadThr)
 % load all data into memory
 if ~iscellstr(datalist)
     fid = fopen(datalist, 'rt');
@@ -93,8 +96,26 @@ else
 end
 nfiles = size(filenames, 1);
 data = cell(nfiles, 1);
+if nargin == 2
 for ix = 1 : nfiles,
     data{ix} = htkread(filenames{ix},featCol);
+end
+else
+        if nargin == 1
+    for ix = 1 : nfiles,
+    data{ix} = htkread(filenames{ix});
+    end
+        else % all parameters
+            if ~isempty(vadCol)
+                for ix = 1 : nfiles,
+                data{ix} = htkread(filenames{ix},featCol,vadCol,vadThr);
+                end
+            else
+                for ix = 1 : nfiles,
+                data{ix} = htkread(filenames{ix},featCol);
+                end    
+            end
+        end
 end
 
 function [gm, gv] = comp_gm_gv(data)

@@ -1,4 +1,4 @@
-function gmm = mapAdapt(dataList, ubmFilename, tau, config, gmmFilename,featCol)
+function gmm = mapAdapt(dataList, ubmFilename, tau, config, gmmFilename,featCol,vadCol,vadThr)
 % MAP-adapts a speaker specific GMM gmmFilename from UBM ubmFilename using
 % features in dataList. The MAP relevance factor can be specified via tau.
 % Adaptation of all GMM hyperparameters are supported. 
@@ -50,7 +50,7 @@ gmm = ubm;
 
 if ischar(dataList) || iscellstr(dataList),
 	if nargin>4
-    dataList = load_data(dataList,featCol);
+    dataList = load_data(dataList,featCol,vadCol,vadThr);
     else
         dataList = load_data(dataList);
     end
@@ -95,7 +95,7 @@ if ( nargin >= 5  && ~isempty(gmmFilename)),
 	save(gmmFilename, 'gmm');
 end
 
-function data = load_data(datalist,featCol)
+function data = load_data(datalist,featCol,vadCol,vadThr)
 % load all data into memory
 if ~iscellstr(datalist)
     fid = fopen(datalist, 'rt');
@@ -111,12 +111,23 @@ if nargin == 2
 for ix = 1 : nfiles,
     data{ix} = htkread(filenames{ix},featCol);
 end
-    else
+else
+        if nargin == 1
     for ix = 1 : nfiles,
     data{ix} = htkread(filenames{ix});
     end
+        else % all parameters
+            if ~isempty(vadCol)
+                for ix = 1 : nfiles,
+                data{ix} = htkread(filenames{ix},featCol,vadCol,vadThr);
+                end
+            else
+                for ix = 1 : nfiles,
+                data{ix} = htkread(filenames{ix},featCol);
+                end    
+            end
+        end
 end
-
 
 function [N, F, S, llk] = expectation(data, gmm)
 % compute the sufficient statistics

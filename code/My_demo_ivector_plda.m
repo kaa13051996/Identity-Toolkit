@@ -4,7 +4,7 @@ This is a demo on how to use the Identity Toolbox for i-vector based speaker
 recognition. A relatively small scale task has been designed using speech
 material from the TIMIT corpus. There are a total of 630 (192 female and
 438 male) speakers in TIMIT, from which we have selected 530 speakers for
-background model training and the remaining 100 (30 female and 70 male)
+background modeBl training and the remaining 100 (30 female and 70 male)
 speakers are used for tests. There are 10 short sentences per speaker in
 TIMIT. For background model training we use all sentences from all 530
 speakers (i.e., 5300 speech recordings in total). For speaker specific
@@ -42,23 +42,34 @@ p = gcp('nocreate');
 if isempty(p), parpool(nworkers); end 
 
 %% Loading config file
-fea_dir =  'E:\temp\123\data\12MFC\'; % Feature files list
-configDir = 'E:\temp\123\data\12MFC\Lists\';
+fea_dir =  'E:\temp\123\Smile\'; % Feature files list
+configDir = 'E:\temp\123\data\ListsMF\';
+ini = IniConfig();
+ini.ReadFile(strcat(configDir,'cMFC.lst'));
+sections = ini.GetSections();
+indGMM = find(ismember(sections,'[UBM GMM]'));
+indDS = find(ismember(sections,'[Data selection]'));
+indIV = find(ismember(sections,'[I-vector]'));
+keys=ini.GetKeys(sections{indGMM});
+ubmMap = containers.Map(keys,ini.GetValues(sections{indGMM}, keys)); % reading UBM GMM section
+dataList = strcat(configDir,ubmMap('ubmList')); %UBM training list
+trainList = strcat(configDir,ubmMap('trainList')); % Speaker modelling list
+testList = strcat(configDir,ubmMap('testList')); % Trials list
+ubmFile=strcat(configDir,ubmMap('ubmFile')); %ubmFile=ubmFile{1};
 
-fid = fopen(strcat(configDir,'config.lst'), 'rt');
-C = textscan(fid, '%q'); 
-fclose(fid);
-dataList = strcat(configDir,C{1}(1)); %UBM training list 
-ubmIdList = strcat(configDir,C{1}(2)); %UBM trainig list with speaker IDs
-trainList = strcat(configDir,C{1}(3)); % Speaker modelling list
-testList = strcat(configDir,C{1}(4)); % Trials list
-%dataList = dataList;
-ubmIdList = ubmIdList{1};
-trainList = trainList{1};
-testList = testList{1};
-ubmFile=strcat(configDir,'UBM.mat');
-bwFile=strcat(configDir,'bw.mat');
-tFile=strcat(configDir,'T.mat');
+keys=ini.GetKeys(sections{indDS}); % reading Data Selection section
+dataMap = containers.Map(keys,ini.GetValues(sections{indDS}, keys));
+featCol=str2num(dataMap('columns'));
+vadCol=dataMap('vadColumn');
+vadThr=dataMap('vadThreshold');
+
+keys=ini.GetKeys(sections{indIV});
+ivMap = containers.Map(keys,ini.GetValues(sections{indIV}, keys)); % reading I-vector section
+ubmIdList = strcat(configDir,ubmMap('ubmIdList')); %UBM id training list
+bwFile=strcat(configDir,ubmMap('bwFile')); 
+tFile=strcat(configDir,ubmMap('tFile')); 
+pldaFile=strcat(configDir,ubmMap('pldaFile'));
+
 
 %% Step1: Training the UBM
 %dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
@@ -77,14 +88,14 @@ filenames = textscan(fid, '%q');
 fclose(fid);
 filenames = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
                        filenames, 'UniformOutput', false);
-ubm = gmm_em(filenames{1}, nmix, final_niter, ds_factor, nworkers,ubmFile);
+ubm = gmm_em(filenames{1}, nmix, final_niter, ds_factor, nworkers,ubmFile,featCol,vadCol,vadThr);
 end
 
 %% Step2: Learning the total variability subspace from background data
 tv_dim = 400; 
 niter  = 5;
 %dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
-fid = fopen(dataList{1}, 'rt');
+fid = fopen(dataList, 'rt');
 C = textscan(fid, '%q');
 fclose(fid);
 C = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
@@ -94,15 +105,16 @@ feaFiles = C{1};
 if exist(bwFile,'file')
       
     load(bwFile);
-    %ubm = gmm;
-    %clear('gmm');
+
 else    
 stats = cell(length(feaFiles), 1);
 
 parfor file = 1 : length(feaFiles),
-    [N, F] = compute_bw_stats(feaFiles{file}, ubm);
+    [N, F] = compute_bw_stats(feaFiles{file}, ubm, featCol,vadCol,vadThr);
     stats{file} = [N; F];
 end
+save(bwFile,stats);
+
 end
 if exist(tFile,'file')
       
@@ -111,10 +123,18 @@ if exist(tFile,'file')
     %clear('gmm');
 else    
 T = train_tv_space(stats, ubm, tv_dim, niter, nworkers);
+save(tFile,T);
 end
 
 %% Step3: Training the Gaussian PLDA model with development i-vectors
+
+if exist(pldaFile,'file')
+      
+    load(pldaFile);
+
+else
 lda_dim = 200;
+
 nphi    = 200;
 niter   = 10;
 %dataList = 'E:\temp\123\Smile\Lists\UBM_id.lst';
@@ -137,6 +157,8 @@ dev_ivs = V(:, 1 : lda_dim)' * dev_ivs;
 %------------------------------------
 plda = gplda_em(dev_ivs, spk_labs, nphi, niter);
 
+save(pldaFile,plda,V,lda_dim);
+end
 
 %% Step4: Scoring the verification trials
 %fea_dir = 'E:\temp\123\Smile\';
@@ -156,7 +178,7 @@ parfor spk = 1 : nspks,
                        spk_files, 'UniformOutput', false);
     N = 0; F = 0; 
     for ix = 1 : length(spk_files),
-        [n, f] = compute_bw_stats(spk_files{ix}, ubm);
+        [n, f] = compute_bw_stats(spk_files{ix}, ubm, featCol, vadCol, vadThr);
         N = N + n; F = f + F; 
         model_ivs1(:, spk) = model_ivs1(:, spk) + extract_ivector([n; f], ubm, T);
     end
@@ -173,7 +195,7 @@ test_files = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
                        test_files, 'UniformOutput', false);
 test_ivs = zeros(tv_dim, length(test_files));
 parfor tst = 1 : length(test_files),
-    [N, F] = compute_bw_stats(test_files{tst}, ubm);
+    [N, F] = compute_bw_stats(test_files{tst}, ubm, featCol, vadCol, vadThr);
     test_ivs(:, tst) = extract_ivector([N; F], ubm, T);
 end
 % reduce the dimensionality with LDA

@@ -1,4 +1,4 @@
-function llr = score_gmm_trials(models, testFiles, trials, ubmFilename,featCol)
+function llr = score_gmm_trials(models, testFiles, trials, ubmFilename,featCol,vadCol,vadThr)
 % computes the log-likelihood ratio of observations given the UBM and
 % speaker-specific (MAP adapted) models. 
 %
@@ -35,9 +35,15 @@ if iscellstr(testFiles),
     tlen = length(testFiles);
     tests = cell(tlen, 1);
     if nargin > 4
-    for ix = 1 : tlen,
-        tests{ix} = htkread(testFiles{ix},featCol);
-    end
+        if ~isempty(vadCol)
+            for ix = 1 : tlen,
+            tests{ix} = htkread(testFiles{ix},featCol,vadCol,vadThr);
+            end
+        else
+            for ix = 1 : tlen,
+            tests{ix} = htkread(testFiles{ix},featCol);
+            end
+        end
     else 
       for ix = 1 : tlen,
         tests{ix} = htkread(testFiles{ix});
