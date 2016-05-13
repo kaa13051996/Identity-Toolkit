@@ -43,10 +43,10 @@ if isempty(p), parpool(nworkers); end
 
 %% Loading config file
 %fea_dir =  'E:\temp\123\Smile\'; % Feature files list
-fea_dir =  'E:\temp\123\Smile_full\'; % Feature files list
+fea_dir =  'E:\temp\123\20mfc\'; % Feature files list
 configDir = 'E:\temp\123\data\ListsMF\';
 ini = IniConfig();
-ini.ReadFile(strcat(configDir,'cMFC14Vp.lst'));
+ini.ReadFile(strcat(configDir,'cMFC.lst'));
 sections = ini.GetSections();
 indGMM = find(ismember(sections,'[UBM GMM]'));
 indDS = find(ismember(sections,'[Data selection]'));
@@ -63,17 +63,14 @@ featCol=str2num(dataMap('columns'));
 vadCol=dataMap('vadColumn');
 vadThr=dataMap('vadThreshold');
 
+results = zeros(20,3);
 
+for step=2:20
+    featCol=1:step;
 %% Step1: Training the UBM
 %dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
 %Check if UBM is already trained
-if exist(ubmFile,'file')
-  
-load(ubmFile);
-ubm = gmm;
-clear('gmm');
 
-else    
 nmix = 256;
 final_niter = 10;
 ds_factor = 1;
@@ -83,7 +80,7 @@ fclose(fid);
 filenames = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
                        filenames, 'UniformOutput', false);
 ubm = gmm_em(filenames{1}, nmix, final_niter, ds_factor, nworkers,ubmFile,featCol,vadCol,vadThr);
-end
+
 
 %% Step2: Adapting the speaker models from UBM
 %fea_dir = 'E:\temp\123\Smile\';
@@ -95,7 +92,7 @@ model_ids = unique(C{1}, 'stable');
 model_files = C{2};
 nspks = length(model_ids);
 map_tau = 10.0;
-config = 'm';
+config = 'mwv';
 gmm_models = cell(nspks, 1); 
 for spk = 1 : nspks,
     ids = find(ismember(C{1}, model_ids{spk}));
@@ -121,4 +118,5 @@ scores = score_gmm_trials(gmm_models, test_files, trials, ubm,featCol,vadCol,vad
 
 %% Step4: Computing the EER and plotting the DET curve
 labels = C{3};
-[eer, dcf1, dcf2] = compute_eer(scores, labels, true);
+[results(step,1), results(step,2), results(step,3)] = compute_eer(scores, labels, true);
+end

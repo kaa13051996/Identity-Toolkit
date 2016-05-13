@@ -65,10 +65,10 @@ vadThr=dataMap('vadThreshold');
 
 keys=ini.GetKeys(sections{indIV});
 ivMap = containers.Map(keys,ini.GetValues(sections{indIV}, keys)); % reading I-vector section
-ubmIdList = strcat(configDir,ubmMap('ubmIdList')); %UBM id training list
-bwFile=strcat(configDir,ubmMap('bwFile')); 
-tFile=strcat(configDir,ubmMap('tFile')); 
-pldaFile=strcat(configDir,ubmMap('pldaFile'));
+ubmIdList = strcat(configDir,ivMap('ubmIdList')); %UBM id training list
+bwFile=strcat(configDir,ivMap('bwFile')); 
+tFile=strcat(configDir,ivMap('tFile')); 
+pldaFile=strcat(configDir,ivMap('pldaFile'));
 
 
 %% Step1: Training the UBM
@@ -113,7 +113,7 @@ parfor file = 1 : length(feaFiles),
     [N, F] = compute_bw_stats(feaFiles{file}, ubm, featCol,vadCol,vadThr);
     stats{file} = [N; F];
 end
-save(bwFile,stats);
+save(bwFile,'stats');
 
 end
 if exist(tFile,'file')
@@ -123,7 +123,7 @@ if exist(tFile,'file')
     %clear('gmm');
 else    
 T = train_tv_space(stats, ubm, tv_dim, niter, nworkers);
-save(tFile,T);
+save(tFile,'T');
 end
 
 %% Step3: Training the Gaussian PLDA model with development i-vectors
@@ -157,7 +157,7 @@ dev_ivs = V(:, 1 : lda_dim)' * dev_ivs;
 %------------------------------------
 plda = gplda_em(dev_ivs, spk_labs, nphi, niter);
 
-save(pldaFile,plda,V,lda_dim);
+save(pldaFile,'plda','V','lda_dim');
 end
 
 %% Step4: Scoring the verification trials
