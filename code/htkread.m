@@ -17,6 +17,9 @@ fclose(fid);
 if ( nargin >1 && ndim > size(ind,2))
     if nargin>2
         % select voice frames
+        vad_mean = mean(data,vadCol);
+        vad_min = min(data,vadCol);
+        
         toDelete = data(vadCol,:)<=vadThr;
         data(:,toDelete)=[];
     end
