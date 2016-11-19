@@ -17,7 +17,9 @@ for i=1:size(filenames{1},1)
    data = htkread(char(filenames{1}(i))); 
    vadCol = 20;
    vad_mean = mean(data(vadCol,:));
-   vad_min = min(data(vadCol,:));
+   A = data(vadCol,:);
+   
+   vad_min = min(A(A>0));
    vad_thr = vad_mean-(vad_mean-vad_min)/2;
    toDelete = data(vadCol,:)<=vad_thr;
     

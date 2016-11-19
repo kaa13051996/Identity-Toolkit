@@ -184,7 +184,14 @@ function gmm = gmm_mixup(gmm)
 % perform a binary split of the GMM hyperparameters
 mu = gmm.mu; sigma = gmm.sigma; w = gmm.w;
 [ndim, nmix] = size(sigma);
-[sig_max, arg_max] = max(sigma);
+
+if ndim == 1
+    sig_max = sigma;
+    arg_max = ones(1,nmix);
+else 
+    [sig_max, arg_max] = max(sigma);
+end;
+
 eps = sparse(0 * mu);
 eps(sub2ind([ndim, nmix], arg_max, 1 : nmix)) = sqrt(sig_max);
 % only perturb means associated with the max std along each dim 
