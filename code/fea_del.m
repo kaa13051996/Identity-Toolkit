@@ -5,11 +5,11 @@
     %%featSize = size(featCol,2); %% устанавливаем нужную длину(+1 для Add, = для Del)
 
     featCol = indexes(1:featSize); %%поменять i
-
+    fprintf('Greedy Del. Step № %i\n',i);
 
     for j = 1:featSize
     
-    fprintf('Greedy Del. Step № %i, %i \n',i,j);
+    
     featCol = indexes(1:featSize); %% restore feature vector
     featInd = featCol(j); %% writing down feature number
     featCol(j) = []; %% deleting j-th feature

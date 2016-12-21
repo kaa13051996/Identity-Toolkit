@@ -2,12 +2,14 @@
 featSize = featSize+1;
 featCol = indexes(1:featSize);
     
+fprintf('Step Add ¹ %i \n',i);
+
     for j = 1:featMax
     if  ~isempty(find(featCol==j,1)) 
         continue; 
     end;
     
-    fprintf('Step ¹ %i, %i \n',i,j);
+    
     featCol(1,featSize) = j;
     
     %%run trial

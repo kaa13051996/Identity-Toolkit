@@ -20,6 +20,8 @@ function gmm = gmm_em(dataList, nmix, final_niter, ds_factor, nworkers, gmmFilen
 %
 % Omid Sadjadi <s.omid.sadjadi@gmail.com>
 % Microsoft Research, Conversational Systems Research Center
+Console_output = 0; %% Do you need to write training messages?
+
 
 if ischar(nmix), nmix = str2double(nmix); end
 if ischar(final_niter), final_niter = str2double(final_niter); end
@@ -43,7 +45,9 @@ end
 nfiles = length(dataList);
 
 
-fprintf('\n\nInitializing the GMM hyperparameters ...\n');
+if Console_output 
+    fprintf('\n\nInitializing the GMM hyperparameters ...\n');
+end
 [gm, gv] = comp_gm_gv(dataList);
 gmm = gmm_init(gm, gv); 
 
@@ -55,9 +59,13 @@ niter(log2(nmix) + 1) = final_niter;
 mix = 1;
 while ( mix <= nmix )
 	if ( mix >= nmix/2 ), ds_factor = 1; end % not for the last two splits!
+    if Console_output 
     fprintf('\nRe-estimating the GMM hyperparameters for %d components ...\n', mix);
+    end
     for iter = 1 : niter(log2(mix) + 1)
+        if Console_output
         fprintf('EM iter#: %d \t', iter);
+        end
         N = 0; F = 0; S = 0; L = 0; nframes = 0;
         tim = tic;
         parfor (ix = 1 : nfiles, nworkers)
@@ -67,7 +75,9 @@ while ( mix <= nmix )
 			nframes = nframes + length(l);
         end
         tim = toc(tim);
+        if Console_output 
         fprintf('[llk = %.2f] \t [elaps = %.2f s]\n', L/nframes, tim);
+        end
         gmm = maximization(N, F, S);
     end
     if ( mix < nmix ), 
@@ -76,7 +86,7 @@ while ( mix <= nmix )
     mix = mix * 2;
 end
 
-if ( exist('gmmFilename','var') ),
+if ( exist('gmmFilename','var') && ~isempty(gmmFilename)),
 	fprintf('\nSaving GMM to file %s\n', gmmFilename);
 	% create the path if it does not exist and save the file
 	path = fileparts(gmmFilename);

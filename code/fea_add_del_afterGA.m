@@ -1,15 +1,13 @@
 %%set needed features in config file
-load_cfg;
-maxSteps = 50; %% максимум шагов жадного алгоритма
+maxSteps = 40; %% максимум шагов жадного алгоритма
 method_ch_steps = 3; %% количество шагов, в случае не уменьшения ошибки после которых меняется метод
 current_steps = 0; %% текущее количество шагов
-
 featMax = 97; %% максимальное количество признаков ?????
 
 bestFeat = 1:maxSteps; %% массив признаком, найденным на i-ом шаге (добавленным или удаленным)
-indexes = zeros(1,maxSteps); %% indexes of the best features
-
-
+featCol = find(pop(1).Position);
+indexes = [featCol zeros(1,maxSteps)]; %% indexes of the best features
+featSize = length(featCol); %% current size of feature vector
 
 %%first greedy method
 %%adding one feature at a time
@@ -18,15 +16,8 @@ oneFeatError = 100*ones(maxSteps,featMax);
 oneFeatDcf = 10000*ones(maxSteps,featMax);
 
 method = 0; % 0 - add, 1 - del.
-featSize = 0; %% current size of feature vector
 
-%%for tessting paper featCol 14MFC + Vp.
-
-featCol = [1     2     3     4     5     6     7     8     9    10    11    13    14    26    29    30    32    33    71    89];
-featSize = size(featCol,2);
-indexes = [featCol zeros(1,maxSteps)]; %% indexes of the best features
-
-for i = featSize+1 : maxSteps,
+for i = 9 : maxSteps,
     tic;
     if method == 0 
         fea_add;

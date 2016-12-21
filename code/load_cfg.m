@@ -11,9 +11,9 @@ if isempty(p), parpool(nworkers); end
 %% Loading config file
 %fea_dir =  'E:\temp\123\Smile\'; % Feature files list
 fea_dir =  'E:\temp\123\Smile_full\'; % Feature files list
-configDir = 'E:\temp\123\data\ListsM\';
+configDir = 'E:\temp\123\data\ListsMF\';
 ini = IniConfig();
-ini.ReadFile(strcat(configDir,'cMFC14Vp.lst'));
+ini.ReadFile(strcat(configDir,'cAddDel1.lst'));
 sections = ini.GetSections();
 indGMM = find(ismember(sections,'[UBM GMM]'));
 indDS = find(ismember(sections,'[Data selection]'));
