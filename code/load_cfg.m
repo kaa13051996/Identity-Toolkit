@@ -13,6 +13,7 @@ if isempty(p), parpool(nworkers); end
 fea_dir =  'E:\temp\123\Smile_full\'; % Feature files list
 configDir = 'E:\temp\123\data\ListsMF\';
 ini = IniConfig();
+%ini.ReadFile(strcat(configDir,'cDBN3.lst'));
 ini.ReadFile(strcat(configDir,'cAddDel1.lst'));
 sections = ini.GetSections();
 indGMM = find(ismember(sections,'[UBM GMM]'));

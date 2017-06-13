@@ -1,4 +1,4 @@
-function gmm = gmm_em(dataList, nmix, final_niter, ds_factor, nworkers, gmmFilename,featCol,vadCol,vadThr)
+function gmm = gmm_em_operations(dataList, nmix, final_niter, ds_factor, nworkers, gmmFilename,featCol,vadCol,vadThr)
 % fits a nmix-component Gaussian mixture model (GMM) to data in dataList
 % using niter EM iterations per binary split. The process can be
 % parallelized in nworkers batches using parfor.
@@ -44,26 +44,11 @@ end
 
 nfiles = length(dataList);
 
-dataL = cat(2,dataList{:});
+dataList1 = dataList;
 
-partDiv = 5000;
-nparts = fix(size(dataL,2) / partDiv) ;
-
-cellM = cell(nparts,1);
-
-
-
-for ix = 1 : nparts
-    if (ix ~= nparts)
-        cellM{ix} = dataL(:,(ix-1)*partDiv+1:ix*partDiv);
- 
-    else
-        cellM{ix} = dataL(:,(ix-1)*partDiv+1:end);
-    
-    end
+for ix = 1 : nfiles
+        dataList1{ix} = dataList{ix}';
 end;
-
-
 
 if Console_output 
     fprintf('\n\nInitializing the GMM hyperparameters ...\n');
@@ -76,6 +61,7 @@ gmm = gmm_init(gm, gv);
 % mix = [1 2 4 8 16 32 64 128 256 512 1024];
 niter = [1 2 4 4  4  4  6  6   10  10  15];
 niter(log2(nmix) + 1) = final_niter;
+mul = 0; sum1 = 0;
 
 mix = 1;
 while ( mix <= nmix )
@@ -89,24 +75,35 @@ while ( mix <= nmix )
         end
         N = 0; F = 0; S = 0; L = 0; nframes = 0;
         tim = tic;
-        parfor (ix = 1 : nparts)%, nworkers)
-        %for ix = 1 : nparts,
-            [n, f, s, l] = expectation(cellM{ix}(:, 1:ds_factor:end), gmm);
-            N = N + n; F = F + f; S = S + s; L = L + sum(l);
+        parfor (ix = 1 : nfiles, nworkers)
+%         for ix = 1 : nfiles,
+            [n, f, s, l, m1, s1] = expectation2(dataList1{ix}(:, 1:ds_factor:end), gmm);
+            N = N + n; F = F + f; S = S + s; L = L + sum(l); mul = mul + m1; sum1 = sum1 + s1;
 			nframes = nframes + length(l);
         end
         tim = toc(tim);
         if Console_output 
         fprintf('[llk = %.2f] \t [elaps = %.2f s]\n', L/nframes, tim);
         end
-        gmm = maximization(N, F, S);
+        [gmm,m1,s1] = maximization(N, F, S);
+        mul = mul + m1; sum1 = sum1 + s1;
     end
     if ( mix < nmix ), 
-        gmm = gmm_mixup(gmm); 
+        mul = mul + length(gmm.w);
+        sum1 = sum1 + length(gmm.w)*2;
+        gmm = gmm_mixup(gmm);
     end
-    mix = mix * 2;
+    mix = mix * 2; mul = mul+1;
 end
 
+
+
+disp(mul);
+disp(sum1);
+for ix = 1 : nfiles
+        mul = mul+ length(dataList1{ix});
+end;
+disp(mul) ;
 globalT = toc(globalT); 
 disp (globalT);
 
@@ -167,6 +164,49 @@ gmm.mu    = glob_mu;
 gmm.sigma = glob_sigma;
 gmm.w     = 1;
 
+function [N, F, S, llk, sum1, mul] = expectation2(data, gmm)
+% compute the sufficient statistics
+mu = gmm.mu;
+sigma = gmm.sigma;
+w = gmm.w;
+[dm,dn]=size(data);
+[mum,mun] = size(mu);
+dw = length(w);
+
+data2 = data.*data;
+muDivSig = mu./sigma;
+
+ndim = size(data, 2);
+C = sum(mu.*muDivSig) + sum(log(sigma));
+mul = 3*mum*mun; sum1 = (mum-1)*2+mum;
+
+D = data2 * (1./sigma)  - 2 * data * (muDivSig) + ndim * log(2 * pi);
+mul = mul + (mum*mun)+(dm*dn*mun)+(mum*mun)+(dm*dn*mun)+ 2; sum1 = sum1 + 2*(dm*(dn-1)*mun)+ (2*dm*mun);
+
+post = -0.5 * (bsxfun(@plus, C,  D));
+mul = mul + dm*mun; sum1 = sum1 + dm*mun;
+clear C D;
+
+post = bsxfun(@plus, post, log(w));
+mul = mul + dw; sum1 = sum1 + dm*mun;
+
+xmax = max(post, [], 2);
+llk    = xmax + log(sum(exp(bsxfun(@minus, post, xmax)), 2));
+mul = mul + 2*dm*mun; sum1 = sum1 + 2*dm*mun;
+ind  = find(~isfinite(xmax));
+if ~isempty(ind)
+    llk(ind) = xmax(ind);
+end
+
+post = (exp(bsxfun(@minus, post, llk)));
+mul = mul + dm*mun; sum1 = sum1 + dm*mun;
+
+N = sum(post, 1);
+F = (post' * data)';
+S = (post' * data2)';
+mul = mul + dm*mun*dn*2; sum1 = sum1 + mun+ (dm-1)*mun*dn*2;
+
+
 function [N, F, S, llk] = expectation(data, gmm)
 % compute the sufficient statistics
 [post, llk] = postprob(data, gmm.mu, gmm.sigma, gmm.w(:));
@@ -197,12 +237,20 @@ if ~isempty(ind)
     y(ind) = xmax(ind);
 end
 
-function gmm = maximization(N, F, S)
+function [gmm, mul, sum1] = maximization(N, F, S)
 % ML re-estimation of GMM hyperparameters which are updated from accumulators
+
+dn = length(N);
+[xf, xs] = size(F);
 w  = N / sum(N);
+mul = dn; sum1 = dn-1;
+
 mu = bsxfun(@rdivide, F, N);
+mul = mul+xf*xs; 
 sigma = bsxfun(@rdivide, S, N) - (mu .* mu);
+mul = mul+xf*xs + length(mu); sum1 = sum1 + xf*xs; 
 sigma = apply_var_floors(w, sigma, 0.1);
+mul = mul + dn*dn*2; sum1 = sum1 + dn*2;
 gmm.w = w;
 gmm.mu= mu;
 gmm.sigma = sigma;
@@ -212,7 +260,6 @@ function sigma = apply_var_floors(w, sigma, floor_const)
 % variances
 vFloor = sigma * w' * floor_const;
 sigma  = bsxfun(@max, sigma, vFloor);
-%sigma  = bsxfun(@max, sigma, 1e-6);
 % sigma = bsxfun(@plus, sigma, 1e-6 * ones(size(sigma, 1), 1));
 
 function gmm = gmm_mixup(gmm)

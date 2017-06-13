@@ -1,4 +1,6 @@
-function gmm = gmm_em(dataList, nmix, final_niter, ds_factor, nworkers, gmmFilename,featCol,vadCol,vadThr)
+function gmm = gmm_em_gpu(dataList, nmix, final_niter, ds_factor, nworkers, gmmFilename,featCol,vadCol,vadThr)
+% GPU version of gmm EM alghorithm, basically used for UBM training
+% This function uses single thread gpu calculations
 % fits a nmix-component Gaussian mixture model (GMM) to data in dataList
 % using niter EM iterations per binary split. The process can be
 % parallelized in nworkers batches using parfor.
@@ -44,31 +46,31 @@ end
 
 nfiles = length(dataList);
 
-dataL = cat(2,dataList{:});
-
-partDiv = 5000;
-nparts = fix(size(dataL,2) / partDiv) ;
-
-cellM = cell(nparts,1);
-
-
-
-for ix = 1 : nparts
-    if (ix ~= nparts)
-        cellM{ix} = dataL(:,(ix-1)*partDiv+1:ix*partDiv);
- 
-    else
-        cellM{ix} = dataL(:,(ix-1)*partDiv+1:end);
-    
-    end
-end;
-
-
 
 if Console_output 
     fprintf('\n\nInitializing the GMM hyperparameters ...\n');
 end
+
 globalT = tic;
+dataL = gpuArray(cat(2,dataList{:}));
+partDiv = 50000;
+nparts = fix(size(dataL,2) / partDiv) ;
+
+dataL2 = dataL .* dataL;
+
+g = gpuDevice;
+%dataList = gpuArray(dataList); % transfer data to gpu
+%dataL = cell(nfiles, 1); % создаем список с массивами данных на gpu
+%for ix = 1 : nfiles
+%    dataL{ix} = gpuArray(dataList{ix}(:, 1:ds_factor:end));
+%end
+
+% horzcat(dataList{1},dataList{2})
+% 1-й вариант - оставляем как есть разделение по файлам, батчами делаем
+% обучение
+% 2-й вариант - объединяем все данные в 1 массив
+
+% пока оставлю тут вычисления на cpu
 [gm, gv] = comp_gm_gv(dataList);
 gmm = gmm_init(gm, gv); 
 
@@ -89,17 +91,35 @@ while ( mix <= nmix )
         end
         N = 0; F = 0; S = 0; L = 0; nframes = 0;
         tim = tic;
-        parfor (ix = 1 : nparts)%, nworkers)
-        %for ix = 1 : nparts,
-            [n, f, s, l] = expectation(cellM{ix}(:, 1:ds_factor:end), gmm);
+        gMu = gpuArray(gmm.mu); gSigma = gpuArray(gmm.sigma); gW = gpuArray(gmm.w);
+      for ix = 1 : nparts % Тут надо поэкспериментировать с количеством workers, либо убрать в принципе parfor
+%         for ix = 1 : nfiles,
+            %[n, f, s, l] = expectation(dataL{ix}, gmm);
+            if (ix ~= nparts)
+            [n, f, s, l] = expectation2(dataL(:,(ix-1)*partDiv+1:ix*partDiv),dataL2(:,(ix-1)*partDiv+1:ix*partDiv), gMu,gSigma,gW);
+            else
+                [n, f, s, l] = expectation2(dataL(:,(ix-1)*partDiv+1:end),dataL2(:,(ix-1)*partDiv+1:end), gMu,gSigma,gW);
+            end
             N = N + n; F = F + f; S = S + s; L = L + sum(l);
 			nframes = nframes + length(l);
-        end
+      end
+
         tim = toc(tim);
         if Console_output 
         fprintf('[llk = %.2f] \t [elaps = %.2f s]\n', L/nframes, tim);
         end
-        gmm = maximization(N, F, S);
+        
+        %test maximization time using gpu and cpu
+        %maxT = tic;
+        gmm = maximization(gather(N), gather(F), gather(S));
+        %gmm = maximization(N, F, S);
+        %gmm.mu = gather(gmm.mu);
+        %gmm.w = gather(gmm.w);
+        %gmm.sigma = gather(gmm.sigma);
+        %maxT = toc(maxT);
+        %disp(maxT);
+        %disp(g.FreeMemory);
+        %wait(g);
     end
     if ( mix < nmix ), 
         gmm = gmm_mixup(gmm); 
@@ -109,7 +129,6 @@ end
 
 globalT = toc(globalT); 
 disp (globalT);
-
 if ( exist('gmmFilename','var') && ~isempty(gmmFilename)),
 	fprintf('\nSaving GMM to file %s\n', gmmFilename);
 	% create the path if it does not exist and save the file
@@ -167,6 +186,36 @@ gmm.mu    = glob_mu;
 gmm.sigma = glob_sigma;
 gmm.w     = 1;
 
+function [N, F, S, llk] = expectation2(data, data2, mu, sigma, w)
+% compute the sufficient statistics
+
+%post = lgmmprob(data,gmm.mu, gmm.sigma,gmm.w(:));
+muDivSig = mu./sigma;
+%oneDivSigDat = (1./gmm.sigma)'* data2;
+ndim = size(data, 1);
+C = sum(mu.*muDivSig) + sum(log(sigma));
+D = (1./sigma)' * data2 - 2 * (muDivSig)' * data  + ndim * log(2 * pi);
+%D = oneDivSigDat - 2 * (muDivSig)' * data + ndim * log(2 * pi);
+post = -0.5 * (bsxfun(@plus, C',  D));
+clear C D;
+%wait(gpuDevice);
+post = bsxfun(@plus, post, log(w(:)));
+
+%llk  = logsumexp(post, 1);
+xmax = max(post, [], 1);
+llk    = xmax + log(sum(exp(bsxfun(@minus, post, xmax)), 1));
+ind  = find(~isfinite(xmax));
+if ~isempty(ind)
+    llk(ind) = xmax(ind);
+end
+
+post = exp(bsxfun(@minus, post, llk));
+
+N = sum(post, 2)';
+F = data * post';
+S = data2 * post';
+
+
 function [N, F, S, llk] = expectation(data, gmm)
 % compute the sufficient statistics
 [post, llk] = postprob(data, gmm.mu, gmm.sigma, gmm.w(:));
@@ -212,7 +261,6 @@ function sigma = apply_var_floors(w, sigma, floor_const)
 % variances
 vFloor = sigma * w' * floor_const;
 sigma  = bsxfun(@max, sigma, vFloor);
-%sigma  = bsxfun(@max, sigma, 1e-6);
 % sigma = bsxfun(@plus, sigma, 1e-6 * ones(size(sigma, 1), 1));
 
 function gmm = gmm_mixup(gmm)
