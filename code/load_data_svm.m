@@ -17,7 +17,7 @@ end
 else
         if nargin == 1
     for ix = 1 : nfiles,
-    data{ix} = htkread(filenames{ix});
+    data{ix} = htkread_svm(filenames{ix});
     end
         else % all parameters
             if ~isempty(vadCol)

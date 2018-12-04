@@ -136,11 +136,25 @@ path = 'D:\study\nir\signs\';
 count = 1;
 for i = 1:50
     for j = 1:50
-        test_files{count} = path + string(i) + " (" + string(j) + ").htk";
+        test_files{count} = fea_dir + string(i) + " (" + string(j) + ").htk";
         count = count + 1;
     end
 end
 
-scores = score_gmm_trials(gmm_models, test_files, trials, ubm);
+nfiles = length(test_files);
+dataTest = cell(nfiles, 1);
+    
+for ix = 1 : nfiles,
+     dataTest{ix} = htkread_gmm(test_files{ix});
+end
+
+dataCut = dataTest;
+nfiles = length(dataCut);
+for ix = 1 : nfiles,
+    dataCut{ix} = dataCut{ix}(featCol,:);
+end
+
+scores_learning = score_gmm_trials(gmm_models, dataCut, trials, ubm);
+write_scores(scores_learning, 'D:\study\nir\Identity-Toolkit\code\scores_gmm');
 
 

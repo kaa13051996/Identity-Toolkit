@@ -146,6 +146,7 @@ end
 
 %%итого подгрузили в память все тесты, чтобы каждый раз не читать с диска
 scores = score_gmm_trials(gmm_models, dataCut, trials, ubm,featCol,vadCol,vadThr);
+write_scores(scores, 'D:\study\nir\Identity-Toolkit\code\scores_gmm_test')
 
 %% Step4: Computing the EER and plotting the DET curve
 

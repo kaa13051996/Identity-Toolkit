@@ -27,7 +27,7 @@ for spk = 1 : nspks,
     spk_files = cellfun(@(x) fullfile(fea_dir, x),...  %# стал полный путь до файла
                        spk_files, 'UniformOutput', false);
     %%загружаем обучающие данные
-    dataTrain{spk} = load_data(spk_files);
+    dataTrain{spk} = load_data_svm(spk_files);
 end
 end
 
@@ -41,6 +41,6 @@ dataCut = dataTrain;
 %%тут уже с загруженными данными проводим адаптацию
 
 [models, data, labels] = get_models(dataCut, nspks); %возвращает модели, массив признаков и метки
-filename = 'D:\study\nir\Identity-Toolkit\code\scores-1';
+filename = 'D:\study\nir\Identity-Toolkit\code\scores_svm';
 scores_learning = get_scores(models, data, filename);
 

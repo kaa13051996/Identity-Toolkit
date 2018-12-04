@@ -9,9 +9,9 @@ p = gcp('nocreate');
 if isempty(p), parpool(nworkers); end 
 
 %% Loading config file
-%fea_dir =  'E:\temp\123\Smile\'; % Feature files list
-fea_dir =  'E:\temp\123\Smile_full\'; % Feature files list
-configDir = 'E:\temp\123\data\ListsMF\';
+fea_dir =  'D:\study\nir\signs\'; % Feature files list
+%fea_dir =  'D:\study\nir\Smile_full\'; % Feature files list
+configDir = 'D:\study\nir\data\ListsMF\';
 ini = IniConfig();
 %ini.ReadFile(strcat(configDir,'cDBN3.lst'));
 ini.ReadFile(strcat(configDir,'cAddDel1.lst'));

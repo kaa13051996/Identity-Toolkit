@@ -1,30 +1,27 @@
-clc
-clear
+%{ 
+Only core gmm_ubm trial, not loading any configs.
+
+Assuming that audio recordings are already converted 
+into cepstral features, there are 4 steps involved:
+ 
+ 1. training a UBM from background data
+ 2. MAP adapting speaker models from the UBM using enrollment data
+ 3. scoring verification trials
+ 4. computing the performance measures (e.g., EER)
+
+Note: given the relatively small size of the task, we can load all the data 
+and models into memory. This, however, may not be practical for large scale 
+tasks (or on machines with a limited memory). In such cases, the parameters 
+should be saved to the disk.
+
+Omid Sadjadi <s.omid.sadjadi@gmail.com>
+Microsoft Research, Conversational Systems Research Center
+
+%}
+
 % %% Step1: Training the UBM
 % %dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
 % 
-load_cfg_gmm;
-boosting_gmm;
-load_cfg_svm;
-boosting_svm;
-% scores_gmm = scores_learning;
-clear all;
-load_cfg_svm;
-scores_svm = get_features('D:\study\nir\Identity-Toolkit\code\scores_svm');
-scores_gmm = get_features('D:\study\nir\Identity-Toolkit\code\scores_gmm');
-features = [scores_svm, scores_gmm];
-
-
-count_models = 20;
-count_records = 800;
-labels = get_labels(count_models, count_records);
-models = cell(count_models, 1);
-
-for spk = 1 : count_models
-%         labels=int2str(labels(:));        
-        models{spk} = fitcsvm(features,labels{spk},'KernelFunction','linear', 'Standardize', true );
-end
-
 loadMem = true; %% load all files into the memory
 loadUBM = false; %% load UBM from disk
 
@@ -71,42 +68,42 @@ clear('gmm');
 % 
 % end
 
-% %% Step2: Adapting the speaker models from UBM
-% %fea_dir = 'E:\temp\123\Smile\';
-% %fea_ext = '.htk';
-% map_tau = 10.0;
-% config = 'm';
-% 
-% if  ~loadMem || ~exist('dataTrain','var') 
-% fid = fopen(trainList, 'rt');
-% C = textscan(fid, '%s %q');%прочитать как массив ячеек со строками
-% fclose(fid);
-% model_ids = unique(C{1}, 'stable'); %уникальные не отсортированные значения C[1]
-% model_files = C{2};
-% nspks = length(model_ids);
-% gmm_models = cell(nspks, 1); %одномерный массив 20*1
-% dataTrain = cell(nspks,1); %что там содержится??
-% 
-% for spk = 1 : nspks,
-%     ids = find(ismember(C{1}, model_ids{spk})); %найти в model_ids[i] значения из С[i], которые не нулевые
-%     spk_files = model_files(ids); %было просто имя файла
-%     spk_files = cellfun(@(x) fullfile(fea_dir, x),...  %# стал полный путь до файла
-%                        spk_files, 'UniformOutput', false);
-%     %%загружаем обучающие данные
-%     dataTrain{spk} = load_data(spk_files);
-% end
-% end
-% 
-% %%вырезаем ненужные фичи
-% dataCut = dataTrain;
-% %for spk = 1 : nspks, %от 1 до 20
-% %   for spk2 = 1: length(dataTrain{spk}) %от 1 до 40
-% %       dataCut{spk}{spk2} = dataCut{spk}{spk2}(featCol,:);
-% %   end
-% %end
-% %%тут уже с загруженными данными проводим адаптацию
+%% Step2: Adapting the speaker models from UBM
+%fea_dir = 'E:\temp\123\Smile\';
+%fea_ext = '.htk';
+map_tau = 10.0;
+config = 'm';
 
-% [models, data, labels] = get_models(features, count_models); %возвращает модели, массив признаков и метки
+if  ~loadMem || ~exist('dataTrain','var') 
+fid = fopen(trainList, 'rt');
+C = textscan(fid, '%s %q');%прочитать как массив ячеек со строками
+fclose(fid);
+model_ids = unique(C{1}, 'stable'); %уникальные не отсортированные значения C[1]
+model_files = C{2};
+nspks = length(model_ids);
+gmm_models = cell(nspks, 1); %одномерный массив 20*1
+dataTrain = cell(nspks,1); %что там содержится??
+
+for spk = 1 : nspks,
+    ids = find(ismember(C{1}, model_ids{spk})); %найти в model_ids[i] значения из С[i], которые не нулевые
+    spk_files = model_files(ids); %было просто имя файла
+    spk_files = cellfun(@(x) fullfile(fea_dir, x),...  %# стал полный путь до файла
+                       spk_files, 'UniformOutput', false);
+    %%загружаем обучающие данные
+    dataTrain{spk} = load_data_svm(spk_files);
+end
+end
+
+%%вырезаем ненужные фичи
+dataCut = dataTrain;
+%for spk = 1 : nspks, %от 1 до 20
+%   for spk2 = 1: length(dataTrain{spk}) %от 1 до 40
+%       dataCut{spk}{spk2} = dataCut{spk}{spk2}(featCol,:);
+%   end
+%end
+%%тут уже с загруженными данными проводим адаптацию
+
+[models, data, labels] = get_models(dataCut, nspks); %возвращает модели, массив признаков и метки
 
 %% Step3: Scoring the verification trials
 %fea_dir = 'E:\temp\123\Smile\';
@@ -138,12 +135,8 @@ if  ~loadMem || ~exist('dataTest','var')
     
 end
 
-scores_svm_test = get_features('D:\study\nir\Identity-Toolkit\code\scores_svm_test');
-scores_gmm_test = get_features('D:\study\nir\Identity-Toolkit\code\scores_gmm_test');
-dataCut = [scores_svm_test, scores_gmm_test];
-
 %%removing not needed features
-%dataCut = dataTest;
+dataCut = dataTest;
 nfiles = length(dataCut);
 % nan = 0
 % for ix = 1 : nfiles,
@@ -167,22 +160,23 @@ nTest = size(trials,1);
 %end
 
 % disp(nan)
-%     for i=1:length(dataCut)
-%         dataCut{i}=dataCut{i}';%переворачивает dataCut
-%     end
+    for i=1:length(dataCut)
+        dataCut{i}=dataCut{i}';%переворачивает dataCut
+    end
     %
     scores = zeros(size(trials,1),1);
     %scores = cell(size(trials,1), 1);
     for i=1:size(trials,1)
-%         if (rem(100,i*100/size(trials,1))==0) %точечки
-%             fprintf('.');
-%         end
+        if (rem(100,i*100/size(trials,1))==0) %точечки
+            fprintf('.');
+        end
         %disp(sprintf('Процесс %g ',i*100/size(trials,1)));       
-        [~,score] = predict(models{trials(i,1)},dataCut(trials(i,2),:));
+        [~,score] = predict(models{trials(i,1)},dataCut{trials(i,2)});
         scores(i)=sum(score(:,2))/size(score,1);
         %scores{i}=sum(score(:,2))/size(score,1);
         %clc;
     end
+    write_scores(scores, 'D:\study\nir\Identity-Toolkit\code\scores_svm_test');
 
 %% Step4: Computing the EER and plotting the DET curve
 
