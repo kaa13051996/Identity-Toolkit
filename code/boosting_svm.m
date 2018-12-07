@@ -1,6 +1,6 @@
 
 % %% Step1: Training the UBM 
-loadMem = true; %% load all files into the memory
+loadMem = false; %% load all files into the memory
 loadUBM = false; %% load UBM from disk
 
 load(ubmFile);

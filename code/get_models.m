@@ -2,13 +2,14 @@ function [svm, mass, mass_labels] = get_models(dataCut, nspks)
     models = cell(nspks, 1);
     count_speakers = nspks;%20
     count_recordings = length(dataCut{nspks});%40
-    count_features = length(dataCut{nspks}{1});%28
-    mass = zeros(count_speakers*count_recordings, count_features);%dataCut в виде таблицы
+    count_features = length(dataCut{nspks}{1});%6373 изменила в цикле
+    %mass = zeros(count_speakers*count_recordings, count_features);%dataCut в виде таблицы
+    mass = zeros(count_speakers*count_recordings, 1);%dataCut в виде таблицы
     var = 1;
 
     for dictor = 1 : count_speakers
         for audio = 1 : count_recordings
-            for feature = 1 : count_features
+            for feature = 1 : length(dataCut{dictor}{audio})%вот тут
                 mass(var, feature) = dataCut{dictor}{audio}(feature);            
             end
             var = var + 1;

@@ -1,31 +1,42 @@
-clc
-clear
+%clc
+%clear
 % %% Step1: Training the UBM
 % %dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
 % 
+fprintf('Рассчет score');
 load_cfg_gmm;
 boosting_gmm;
 load_cfg_svm;
 boosting_svm;
 % scores_gmm = scores_learning;
 clear all;
+fprintf('Загрузка score');
 load_cfg_svm;
 scores_svm = get_features('D:\study\nir\Identity-Toolkit\code\scores_svm');
 scores_gmm = get_features('D:\study\nir\Identity-Toolkit\code\scores_gmm');
 features = [scores_svm, scores_gmm];
 
+fprintf('Нормализация score');
+%[features_norm, par_normal] = normalization(features); %признаки после нормализации и параметры нормализации (max, average)
 
+fprintf('Рассчет labels');
 count_models = 20;
 count_records = 800;
 labels = get_labels(count_models, count_records);
-models = cell(count_models, 1);
+%models = cell(count_models, 1);
 
-for spk = 1 : count_models
-%         labels=int2str(labels(:));        
-        models{spk} = fitcsvm(features,labels{spk},'KernelFunction','linear', 'Standardize', true );
-end
+fprintf('Обучение модели');
+%for spk = 1 : count_models
+%         labels=int2str(labels(:));  
+        %models = TreeBagger(10,features,labels);
+        models = fitcsvm(features,labels,'KernelFunction','linear', 'Standardize', true,'KernelScale','auto');
+        %models = fitcsvm(features,labels,'KernelFunction','polynomial', 'Standardize', true,'KernelScale','auto');
+        %models = fitensemble(features,labels,'AdaBoostM1',100,'Tree');
+        %models = fit(ClassificationTree.template, features, labels);
+        %models{spk} = fitcsvm(features,labels{spk},'KernelFunction','linear', 'Standardize', true );
+%end
 
-loadMem = true; %% load all files into the memory
+loadMem = false; %% load all files into the memory
 loadUBM = false; %% load UBM from disk
 
 % if loadUBM&&exist(ubmFile,'file')
@@ -128,6 +139,7 @@ if  ~loadMem || ~exist('dataTest','var')
 
     %% сначала загружаем со всеми признаками
     %%featAll = 1:featMax;
+    fprintf('Загрузка тестов с признаками');
     nfiles = length(test_files);
     dataTest = cell(nfiles, 1);
     
@@ -140,7 +152,10 @@ end
 
 scores_svm_test = get_features('D:\study\nir\Identity-Toolkit\code\scores_svm_test');
 scores_gmm_test = get_features('D:\study\nir\Identity-Toolkit\code\scores_gmm_test');
+
 dataCut = [scores_svm_test, scores_gmm_test];
+%fprintf('Нормализация призаков с заданными параметрами');
+%dataCut_nor = normalization_test(dataCut, par_normal);
 
 %%removing not needed features
 %dataCut = dataTest;
@@ -171,19 +186,34 @@ nTest = size(trials,1);
 %         dataCut{i}=dataCut{i}';%переворачивает dataCut
 %     end
     %
+    count = 1;
+    for features = 1:20
+        for j = 1:200
+            mass{1}(count) = features;
+            mass{2}(count) = count;
+            count = count + 1;
+        end
+    end
+    mass{1} = mass{1}';
+    mass{2} = mass{2}';
+    trials = [mass{1}, mass{2}];
+
     scores = zeros(size(trials,1),1);
     %scores = cell(size(trials,1), 1);
+    
+    fprintf('Тестирование и score');
     for i=1:size(trials,1)
 %         if (rem(100,i*100/size(trials,1))==0) %точечки
 %             fprintf('.');
 %         end
         %disp(sprintf('Процесс %g ',i*100/size(trials,1)));       
-        [~,score] = predict(models{trials(i,1)},dataCut(trials(i,2),:));
+        %[~,score] = predict(models{trials(i,1)},dataCut(trials(i,2),:));
+        [~,score] = predict(models,dataCut(trials(i,2),:));
         scores(i)=sum(score(:,2))/size(score,1);
         %scores{i}=sum(score(:,2))/size(score,1);
         %clc;
     end
 
 %% Step4: Computing the EER and plotting the DET curve
-
+fprintf('Рассчет eer');
 [eer, dcf1, dcf2] = compute_eer(scores, labels, true);

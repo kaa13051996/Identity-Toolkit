@@ -1,3 +1,24 @@
+%{ 
+Only core gmm_ubm trial, not loading any configs.
+
+Assuming that audio recordings are already converted 
+into cepstral features, there are 4 steps involved:
+ 
+ 1. training a UBM from background data
+ 2. MAP adapting speaker models from the UBM using enrollment data
+ 3. scoring verification trials
+ 4. computing the performance measures (e.g., EER)
+
+Note: given the relatively small size of the task, we can load all the data 
+and models into memory. This, however, may not be practical for large scale 
+tasks (or on machines with a limited memory). In such cases, the parameters 
+should be saved to the disk.
+
+Omid Sadjadi <s.omid.sadjadi@gmail.com>
+Microsoft Research, Conversational Systems Research Center
+
+%}
+
 
 %% Step1: Training the UBM
 %dataList = 'E:\temp\123\Smile\Lists\UBM.lst';
@@ -6,7 +27,7 @@ loadMem = true; %% load all files into the memory
 loadUBM = false; %% load UBM from disk
 
 if loadUBM&&exist(ubmFile,'file')
-
+  
 load(ubmFile);
 ubm = gmm;
 clear('gmm');
@@ -24,8 +45,8 @@ if  ~loadMem || ~exist('dataUBM','var')
 
     %% сначала загружаем со всеми признаками
     %%featAll = 1:featMax;
-    dataUBM = load_data_gmm(filenames{1});
-
+	dataUBM = load_data(filenames{1});
+    
 end
 
 %%removing not needed features
@@ -70,7 +91,7 @@ for spk = 1 : nspks,
     spk_files = cellfun(@(x) fullfile(fea_dir, x),...  %# Prepend path to files
                        spk_files, 'UniformOutput', false);
     %%загружаем обучающие данные
-    dataTrain{spk} = load_data_gmm(spk_files);
+    dataTrain{spk} = load_data(spk_files);
 end
 end
 
@@ -85,32 +106,6 @@ end
 for spk = 1 : nspks,
     gmm_models{spk} = mapAdapt(dataCut{spk}, ubm, map_tau, config,'',featCol,vadCol,vadThr);
 end
-% 
-% scores_learning = zeros(size(gmm_models,1),1);        
-% for i=1:size(gmm_models,1)      
-%     [~,score] = predict(gmm_models{i},dataCut(i,1));
-%     scores_learning(i)=sum(score(:,2))/size(score,1);
-%     %scores{i}=sum(score(:,2))/size(score,1);
-%     %clc;
-% end
-
-mass = cell(2,1);
-count = 1;
-for features = 1:20
-    for j = 1:800
-        mass{1}(count) = features;
-        mass{2}(count) = j;
-        count = count + 1;
-    end
-end
-mass{1} = mass{1}';
-mass{2} = mass{2}';
-trials = [mass{1}, mass{2}];
-
-dataCut= cat(1,dataCut{:});
-
-scores_learning = score_gmm_trials(gmm_models, dataCut, trials, ubm);
-write_scores(scores_learning, 'D:\study\nir\Identity-Toolkit\code\scores_gmm');
 
 
 %% Step3: Scoring the verification trials
@@ -151,7 +146,8 @@ end
 
 %%итого подгрузили в память все тесты, чтобы каждый раз не читать с диска
 scores = score_gmm_trials(gmm_models, dataCut, trials, ubm,featCol,vadCol,vadThr);
-write_scores(scores, 'D:\study\nir\Identity-Toolkit\code\scores_gmm_test');
+write_scores(scores, 'D:\study\nir\Identity-Toolkit\code\scores_gmm_test')
 
+%% Step4: Computing the EER and plotting the DET curve
 
-
+[eer, dcf1, dcf2] = compute_eer(scores, labels, true);
